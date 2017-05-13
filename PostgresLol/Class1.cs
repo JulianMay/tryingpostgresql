@@ -44,19 +44,18 @@ namespace PostgresLol
 
     public class RegistrationEventHandler
     {
-        private readonly ConcurrentDictionary<Guid, string> _userCache;
+        private readonly Dictionary<Guid, string> _userCache;
         private readonly User.Cache UserCache;
-        public RegistrationEventHandler(ConcurrentDictionary<Guid, string> userCache = null)
+        public RegistrationEventHandler(Dictionary<Guid, string> userCache = null)
         {
-            _userCache = userCache ?? new ConcurrentDictionary<Guid, string>();
+            _userCache = userCache ?? new Dictionary<Guid, string>();
             UserCache = new User.Cache(_userCache);
         }
             
 
         public void RegistrationRegistered(Guid registrationId,string description, Guid responsibleUserId)
         {
-            var r = new Registration();
-            r.Id = Guid.NewGuid();
+            var r = Registration.MakeBlank(registrationId);
             r.Description = description;
             r.ResponsibleId = responsibleUserId;
             r.Created = DateTime.Now;
@@ -84,8 +83,12 @@ namespace PostgresLol
 
         public void UserAssignedRegistration(Guid registrationId, Guid userId)
         {
-            var r = GetRegistration(registrationId);
-            r.Assignees = r.Assignees.With(User.Cache[userId]);
+            using (var d = Connection.Make())
+            {
+                var r = GetRegistration(registrationId,d);
+                r.Assignees = r.Assignees.With(UserCache[userId]);
+                Update(r,d);
+            }
         }
 
         public void RegistrationStateChanged(Guid registrationId, RegistrationState newState)
@@ -93,15 +96,17 @@ namespace PostgresLol
             throw new NotImplementedException();
         }
 
-        private Registration GetRegistration(Guid id)
+        private Registration GetRegistration(Guid id, IDbConnection d)
         {
-            using (var d = Connection.Make())
-            {
                 var entity = d.Query<string>($"select entity from registrations where Id = '{id}'").FirstOrDefault();
                 if (string.IsNullOrEmpty(entity))
-                    return new Registration { Id = id, Description = "unknown" };
+                    return Registration.MakeBlank(id);
                 return (entity).Deserialized<Registration>();
-            }
+        }
+
+        private void Update(Registration r, IDbConnection d)
+        {
+            d.Execute($"update registrations set entity = '{r.Serialized()}' where id = '{r.Id}'");
         }
     }
 
@@ -122,8 +127,22 @@ namespace PostgresLol
         public DateTime LatestChange;
         public Guid ResponsibleId;
         public User Responsible;
-        public User[] Assignees => new User[0];
-        public RegistrationComment[] Comments => new RegistrationComment[0];
+        public User[] Assignees;
+        public RegistrationComment[] Comments;
+
+
+        private Registration() { /* Use factory methods plz */}
+
+        public static Registration MakeBlank(Guid id)
+        {
+            return new Registration
+            {
+                Id = id,
+                Description = string.Empty,
+                Assignees = new User[0],
+                Comments = new RegistrationComment[0]
+            };
+        }
 
 
     }

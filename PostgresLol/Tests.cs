@@ -53,14 +53,14 @@ namespace PostgresLol
             var regAId = Guid.NewGuid();
             var regBId = Guid.NewGuid();
             var regCId = Guid.NewGuid();
-            var otherRegistrationIds = Enumerable.Repeat(Guid.NewGuid(), 5);
+            var otherRegistrationIds = Enumerable.Repeat(0, 5).Select(x=>Guid.NewGuid());
             var p = new RegistrationEventHandler();
             //james creates 'a', and is assigned to 'b' and 'c'
             p.RegistrationRegistered(regAId,"Some text A", jamesId);
-            p.RegistrationRegistered(regAId, "Some text B", responsibleUserId: Guid.NewGuid());
+            p.RegistrationRegistered(regBId, "Some text B", responsibleUserId: Guid.NewGuid());
             p.UserAssignedRegistration(regBId, jamesId); 
-            p.RegistrationRegistered(regAId, "Some text C", responsibleUserId: Guid.NewGuid());        
-            p.UserAssignedRegistration(regBId, jamesId); 
+            p.RegistrationRegistered(regCId, "Some text C", responsibleUserId: Guid.NewGuid());        
+            p.UserAssignedRegistration(regCId, jamesId); 
             foreach(var regId in otherRegistrationIds)
             {   //other registrations does not concern james
                 p.RegistrationRegistered(regId, "other", responsibleUserId: Guid.NewGuid());

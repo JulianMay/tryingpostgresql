@@ -17,5 +17,10 @@ namespace PostgresLol
         {
             return Newtonsoft.Json.JsonConvert.DeserializeObject<T>(json);
         }
+
+        public static T[] With<T>(this T[] array, T newMember)
+        {
+            return array.Concat(Enumerable.Repeat(newMember, 1)).ToArray();
+        }
     }
 }
