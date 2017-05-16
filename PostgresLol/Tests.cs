@@ -1,14 +1,11 @@
 ﻿using NUnit.Framework;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Transactions;
 
 namespace PostgresLol
 {
-    [TestFixture]
+    [TestFixture, TestOf("PostgreSql as backend for readmodel")]
     class Tests
     {
         private TransactionScope _testScope;
@@ -21,8 +18,13 @@ namespace PostgresLol
             _testScope = new TransactionScope();
         }
 
+        //[TearDown]
+        //public void Commit()
+        //{
+        //    _testScope.Complete();
+        //}
 
-        [Test]
+        [Test, TestOf("Basic write/read")]
         public void RegistrationCanBeCreatedTemporallyDecoupledFromUserCreatingIt()
         {
             var jamesId = Guid.NewGuid();
@@ -45,14 +47,11 @@ namespace PostgresLol
             Assert.AreEqual(RegistrationState.Open, r.State);
         }
 
-        [Test]
+        [Test, TestOf("QueryObject")]
         public void MyRegistrationsCanbeRetrieved()
-        {
-            //Returns registrations that specified user is responsible for or assigned to
-            var jamesId = Guid.NewGuid();
-            var regAId = Guid.NewGuid();
-            var regBId = Guid.NewGuid();
-            var regCId = Guid.NewGuid();
+        {            
+            Guid jamesId = Guid.NewGuid();
+            Guid regAId = Guid.NewGuid(), regBId = Guid.NewGuid(), regCId = Guid.NewGuid();
             var otherRegistrationIds = Enumerable.Repeat(0, 5).Select(x=>Guid.NewGuid());
             var p = new RegistrationEventHandler();
             //james creates 'a', and is assigned to 'b' and 'c'
@@ -72,13 +71,13 @@ namespace PostgresLol
 
             Assert.AreEqual(3, result.Count());
             var a = result.Single(r => r.Id == regAId);
-            Assert.AreEqual(jamesId, a.ResponsibleId);
+            Assert.AreEqual(jamesId, a.Responsible.Id);
             Assert.IsEmpty(a.Assignees);
             var b = result.Single(r => r.Id == regBId);
-            Assert.AreNotEqual(jamesId, b.ResponsibleId);
+            Assert.AreNotEqual(jamesId, b.Responsible.Id);
             CollectionAssert.Contains(b.Assignees.Select(u=>u.Id), jamesId);
             var c = result.Single(r => r.Id == regCId);
-            Assert.AreNotEqual(jamesId, c.ResponsibleId);
+            Assert.AreNotEqual(jamesId, c.Responsible.Id);
             CollectionAssert.Contains(c.Assignees.Select(u => u.Id), jamesId);
         }
     }

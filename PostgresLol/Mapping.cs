@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace PostgresLol
 {
@@ -21,6 +19,27 @@ namespace PostgresLol
         public static T[] With<T>(this T[] array, T newMember)
         {
             return array.Concat(Enumerable.Repeat(newMember, 1)).ToArray();
+        }
+
+        /// <summary>
+        /// Parses queryObject into postgresql condition-expression
+        /// </summary>
+        public static string AsQueryString(this RegistrationQuery q)
+        {
+            var ands = new List<string>();
+
+
+
+
+            if (q.ForUser != Guid.Empty)
+            {
+                ands.Add(string.Format("(entity @> '{{\"ResponsibleId\" :\"{0}\"}}' OR entity ->'AssigneeIds' ? '{0}')", q.ForUser));
+            }
+            
+
+            if(ands.Count == 0)
+                return $"select entity from registrations";
+            return $"select entity from registrations where {string.Join(" and ",ands)}";
         }
     }
 }

@@ -1,0 +1,7 @@
+﻿CREATE DATABASE MyTest;
+
+CREATE TABLE registrations (id uuid PRIMARY KEY, entity jsonb NOT NULL);
+CREATE INDEX registrations_assignees_gin_idx ON registrations USING gin ((entity->'AssigneeIds') jsonb_path_ops);
+CREATE INDEX registrations_responsible_gin_idx ON registrations USING gin ((entity->'ResponsibleId') jsonb_path_ops);
+
+CREATE TABLE users (id uuid PRIMARY KEY, name text NOT NULL);

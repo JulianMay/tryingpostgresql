@@ -1,18 +1,15 @@
 ﻿using Dapper;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace PostgresLol
 {
     public static class Connection {
         public static IDbConnection Make()
         {
-            var c = new Npgsql.NpgsqlConnection("Server=127.0.0.1;Port=5432;Database=Test;User Id=postgres;Password=Q123w234; Enlist=true");
+            var c = new Npgsql.NpgsqlConnection("Server=127.0.0.1;Port=5432;Database=MyTest;User Id=postgres;Password=Q123w234; Enlist=true");
    
             return c;
         }
@@ -21,17 +18,18 @@ namespace PostgresLol
 
     public class RegistrationReadService
     {
-        public IEnumerable<Registration> SearchRegistrations(RegistrationQuery query)
+        public IEnumerable<RegistrationSearchResult> SearchRegistrations(RegistrationQuery query)
         {
             using (var d = Connection.Make())
             {
-                var qry = d.QueryMultiple("select name, id from users; select entity from registrations;");
+                var qry = d.QueryMultiple($"select name, id from users; {query.AsQueryString()}");
                 var users = new User.Cache(qry.Read().ToDictionary(u => (Guid)u.id, u => (string)u.name));
                 foreach (var e in qry.Read())
                 {
-                    var r = ((string)e.entity).Deserialized<Registration>();
-                    r.Responsible = users[r.ResponsibleId];
-                    yield return r;
+                    var registration = ((string)e.entity).Deserialized<Registration>();
+                    var responsible = users[registration.ResponsibleId];
+                    var assignees = registration.AssigneeIds.Select(a => users[a]).ToArray();
+                    yield return new RegistrationSearchResult(registration, responsible, assignees);
                 }
             }
         }
@@ -44,15 +42,6 @@ namespace PostgresLol
 
     public class RegistrationEventHandler
     {
-        private readonly Dictionary<Guid, string> _userCache;
-        private readonly User.Cache UserCache;
-        public RegistrationEventHandler(Dictionary<Guid, string> userCache = null)
-        {
-            _userCache = userCache ?? new Dictionary<Guid, string>();
-            UserCache = new User.Cache(_userCache);
-        }
-            
-
         public void RegistrationRegistered(Guid registrationId,string description, Guid responsibleUserId)
         {
             var r = Registration.MakeBlank(registrationId);
@@ -86,7 +75,7 @@ namespace PostgresLol
             using (var d = Connection.Make())
             {
                 var r = GetRegistration(registrationId,d);
-                r.Assignees = r.Assignees.With(UserCache[userId]);
+                r.AssigneeIds = r.AssigneeIds.With(userId);
                 Update(r,d);
             }
         }
@@ -126,12 +115,9 @@ namespace PostgresLol
         public DateTime Created;
         public DateTime LatestChange;
         public Guid ResponsibleId;
-        public User Responsible;
-        public User[] Assignees;
+        public Guid[] AssigneeIds;
         public RegistrationComment[] Comments;
 
-
-        private Registration() { /* Use factory methods plz */}
 
         public static Registration MakeBlank(Guid id)
         {
@@ -139,13 +125,42 @@ namespace PostgresLol
             {
                 Id = id,
                 Description = string.Empty,
-                Assignees = new User[0],
+                AssigneeIds = new Guid[0],
                 Comments = new RegistrationComment[0]
             };
         }
-
-
     }
+
+    /// <summary>
+    /// Denormalized viewmodel
+    /// </summary>
+    public class RegistrationSearchResult
+    {
+        public Guid Id;
+        public string Description;
+        public RegistrationState State;
+        public DateTime Created;
+        public DateTime LatestChange;
+        public RegistrationComment[] Comments;
+        public readonly User Responsible;
+        public readonly User[] Assignees;
+
+        public RegistrationSearchResult(Registration registration, User responsible, User[] assignees)
+        {
+            if (registration == null) throw new ArgumentNullException("registration");
+            if (responsible == null) throw new ArgumentNullException("responsible");
+            if (assignees == null) throw new ArgumentNullException("assignees");
+            Id = registration.Id;
+            Description = registration.Description;
+            State = registration.State;
+            Created = registration.Created;
+            LatestChange = registration.LatestChange;
+            Comments = registration.Comments;
+            Responsible = responsible;
+            Assignees = assignees;
+        }
+    }
+
 
     public enum RegistrationState { Open, ReadyForInspection, NeedsMoreWork, Accepted, Declined }
 
